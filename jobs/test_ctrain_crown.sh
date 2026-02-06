@@ -36,4 +36,4 @@ module load CUDA/12.3.0
 source ~/dev/CTRAIN/venv/bin/activate
 
 cd ~/dev/CTRAIN
-python3 test_ctrain_crown_cifar_HPO.py
+python3 test_crown_ibp_mnist.py
