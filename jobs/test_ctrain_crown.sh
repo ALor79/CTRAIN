@@ -36,4 +36,4 @@ module load CUDA/12.3.0
 source ~/dev/CTRAIN/venv/bin/activate
 
 cd ~/dev/CTRAIN
-python3 test_crown_ibp_mnist.py
+python3 tests/test_crown_ibp_mnist.py
