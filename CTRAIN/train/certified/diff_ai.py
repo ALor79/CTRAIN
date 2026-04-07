@@ -40,6 +40,9 @@ def shi_train_model(
     results_path="./results",
     checkpoint_save_interval=10,
     device="cuda",
+    bound_method='ibp',
+    relu_transformer='boxy',
+    use_errors=False,
 ):
     """
     Train a model using the Shi-IBP method for certified robustness.
@@ -69,6 +72,10 @@ def shi_train_model(
         results_path (str, optional): Path to save the training results. Defaults to "./results".
         checkpoint_save_interval (int, optional): Interval for saving checkpoints. Defaults to 10.
         device (str, optional): Device to use for training ('cuda' or 'cpu'). Defaults to 'cuda'.
+        bound_method (str, optional): Bound computation method — 'ibp' (default) or 'zonotope'.
+        relu_transformer (str, optional): For zonotope mode — 'boxy', 'switch', or 'smooth'. Defaults to 'boxy'.
+        use_errors (bool, optional): For zonotope mode — use explicit error terms for tighter bounds.
+                                     Memory-intensive for large inputs. Defaults to False.
 
     Returns:
         (auto_LiRPA.BoundedModule): The trained hardened model.
@@ -164,6 +171,9 @@ def shi_train_model(
                     criterion=criterion,
                     return_bounds=False,
                     return_stats=True,
+                    bound_method=bound_method,
+                    relu_transformer=relu_transformer,
+                    use_errors=use_errors,
                 )
 
                 epoch_rob_err += robust_err
