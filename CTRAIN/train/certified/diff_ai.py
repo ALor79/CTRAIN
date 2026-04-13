@@ -14,8 +14,7 @@ from CTRAIN.train.certified.regularisers import get_shi_regulariser
 from CTRAIN.util import save_checkpoint
 from CTRAIN.train.certified.regularisers import get_l1_reg
 
-
-def shi_train_model(
+def diff_ai_train_model(
     original_model,
     hardened_model,
     train_loader,
@@ -237,3 +236,4 @@ def shi_train_model(
             )
 
     return hardened_model
+# diff_ai_train_model = shi_train_model

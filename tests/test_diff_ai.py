@@ -1,34 +1,30 @@
 """
-Test script for DiffAI certified training with IBP and hybrid zonotope bounds.
-
 Trains CNN7_Shi on MNIST for a short run and compares:
   - IBP bounds (baseline)
   - Zonotope bounds with crelu_boxy
   - Zonotope bounds with crelu_switch
   - Zonotope bounds with crelu_smooth
-
-Usage:
-    python test_diff_ai.py
+  - TODO creluNIPS
 """
 
+import os
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+warnings.simplefilter("ignore")
+os.environ["PYTHONWARNINGS"] = "ignore"
 
 import torch
 from auto_LiRPA import BoundedModule
 
 from CTRAIN.model_definitions import CNN7_Shi
 from CTRAIN.data_loaders import load_mnist
-from CTRAIN.train.certified.diff_ai import shi_train_model
-from CTRAIN.eval import eval_certified
+from CTRAIN.train.certified.diff_ai import diff_ai_train_model
+from CTRAIN.eval import eval_certified, eval_acc
 
-# ------------------------------------------------------------------
-# Config
-# ------------------------------------------------------------------
 
 IN_SHAPE     = [1, 28, 28]
 EPS          = 0.3
-NUM_EPOCHS   = 5       # short run — increase for real training (e.g. 120)
+NUM_EPOCHS   = 100      
 WARM_UP      = 1
 RAMP_UP      = 2
 LR           = 0.0005
@@ -41,32 +37,27 @@ CONFIGS = [
     dict(label='Zonotope - smooth',       bound_method='zonotope', relu_transformer='smooth', use_errors=False),
 ]
 
-# ------------------------------------------------------------------
-# Data
-# ------------------------------------------------------------------
-
+# Data splits
 train_loader, test_loader = load_mnist(val_split=False)
 eps_std = torch.tensor(EPS / train_loader.std).reshape(-1, 1, 1)
 
-# ------------------------------------------------------------------
 # Helper: build a fresh BoundedModule for each run
-# ------------------------------------------------------------------
 
 def build_models():
     model = CNN7_Shi(in_shape=IN_SHAPE).to(DEVICE)
+    model.eval()  # BatchNorm requires eval mode when tracing with batch_size=1
     example_input = torch.ones([1, *IN_SHAPE], device=DEVICE)
     bounded = BoundedModule(
         model=model,
         global_input=example_input,
         bound_opts=dict(conv_mode='patches', relu='adaptive'),
-        device=DEVICE,
     )
+    model.train()
+    bounded.train()
     optimizer = torch.optim.Adam(bounded.parameters(), lr=LR)
     return model, bounded, optimizer
 
-# ------------------------------------------------------------------
-# Run
-# ------------------------------------------------------------------
+# Main
 
 results = []
 
@@ -77,7 +68,7 @@ for cfg in CONFIGS:
 
     model, bounded, optimizer = build_models()
 
-    shi_train_model(
+    diff_ai_train_model(
         original_model=model,
         hardened_model=bounded,
         train_loader=train_loader,
@@ -95,12 +86,12 @@ for cfg in CONFIGS:
     )
 
     bounded.eval()
-    std_acc, cert_acc = eval_certified(
+    std_acc = eval_acc(model=bounded, test_loader=test_loader)
+    cert_acc = eval_certified(
         model=bounded,
-        test_loader=test_loader,
+        data_loader=test_loader,
         eps=eps_std,
         n_classes=10,
-        device=DEVICE,
     )
 
     results.append(dict(label=cfg['label'], std_acc=std_acc, cert_acc=cert_acc))
