@@ -4,3 +4,4 @@ from CTRAIN.model_wrappers.sabr_model_wrapper import SABRModelWrapper
 from CTRAIN.model_wrappers.taps_model_wrapper import TAPSModelWrapper
 from CTRAIN.model_wrappers.staps_model_wrapper import STAPSModelWrapper
 from CTRAIN.model_wrappers.mtl_ibp_model_wrapper import MTLIBPModelWrapper
+from CTRAIN.model_wrappers.diff_ai_model_wrapper import DiffAIModelWrapper

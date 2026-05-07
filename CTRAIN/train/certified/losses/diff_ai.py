@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
-from CTRAIN.bound import bound_ibp
-from CTRAIN.bound.zono_bound import bound_zonotope
+from CTRAIN.bound import bound_ibp, bound_zonotope
 
 
 def get_diffai_loss(

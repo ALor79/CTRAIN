@@ -11,7 +11,7 @@ from auto_LiRPA import PerturbationLpNorm
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
-from CTRAIN.bound import bound_ibp, bound_crown, bound_crown_ibp
+from CTRAIN.bound import bound_ibp, bound_crown, bound_crown_ibp, bound_zonotope
 from CTRAIN.attacks import pgd_attack
 from CTRAIN.complete_verification.abCROWN.util import instances_to_vnnlib, get_abcrown_standard_conf
 from CTRAIN.complete_verification.abCROWN.verify import limited_abcrown_eval, abcrown_eval
@@ -406,8 +406,58 @@ def eval_adaptive(model, eps, data_loader, n_classes=10, test_samples=np.inf, de
     
     return no_certified, total_images, certified
 
+
+def eval_zonotope(model, eps, data_loader, n_classes=10, relu_transformer='boxy', use_errors=False, test_samples=np.inf, device='cuda'):
+    """
+    Evaluate certified accuracy using hybrid zonotope bound propagation.
+
+    Parameters:
+        model: nn.Module or BoundedModule. If BoundedModule, the underlying
+               original_model is extracted automatically.
+        eps (torch.Tensor): Perturbation radius (normalised), shape broadcastable to input.
+        data_loader: DataLoader for the test dataset.
+        n_classes (int): Number of output classes. Default is 10.
+        relu_transformer (str): Zonotope ReLU transformer — 'boxy', 'switch', or 'smooth'.
+        use_errors (bool): Whether to track explicit zonotope error terms. Default is False.
+        test_samples (int or float): Number of samples to evaluate. Default is np.inf.
+        device (str): Device to run evaluation on. Default is 'cuda'.
+
+    Returns:
+        (certified, total_images): Count of certified samples and total samples evaluated.
+    """
+    net = getattr(model, 'original_model', model)
+    net.eval()
+    certified = 0
+    total_images = 0
+
+    with torch.no_grad():
+        for data, target in data_loader:
+            if total_images >= test_samples:
+                break
+            batch_n = min(len(target), test_samples - total_images)
+            data, target = data[:batch_n].to(device), target[:batch_n].to(device)
+
+            ptb = PerturbationLpNorm(
+                eps=eps,
+                norm=np.inf,
+                x_L=torch.clamp(data - eps, data_loader.min, data_loader.max),
+                x_U=torch.clamp(data + eps, data_loader.min, data_loader.max),
+            )
+
+            lb, _ = bound_zonotope(
+                net, ptb, data, target,
+                n_classes=n_classes,
+                relu_transformer=relu_transformer,
+                use_errors=use_errors,
+            )
+            certified += (lb >= 0).all(dim=1).sum().item()
+            total_images += batch_n
+
+    return certified, total_images
+
+
 # TODO: can we maybe spare no_classes?
-def eval_certified(model, data_loader, eps, n_classes=10, test_samples=np.inf, method='IBP'):
+def eval_certified(model, data_loader, eps, n_classes=10, test_samples=np.inf, method='IBP', **kwargs):
     """
     Evaluate the certified robustness of a model using a given verification method.
     
@@ -417,8 +467,10 @@ def eval_certified(model, data_loader, eps, n_classes=10, test_samples=np.inf, m
         n_classes (int, optional): Number of classes in the dataset. Default is 10.
         eps (float): Perturbation radius for certification.
         test_samples (int or float, optional): Number of test samples to evaluate. Default is np.inf (all samples).
-        method (str or list, optional): The certification method to use. Options are 'IBP', 'CROWN', 'CROWN-IBP', 'ADAPTIVE', 'COMPLETE', or a list of methods (which results in an ADAPTIVE evaluation using these methods). Default is 'IBP'.
-    
+        method (str or list, optional): The certification method to use. Options are 'IBP', 'CROWN', 'CROWN-IBP', 'ADAPTIVE', 'COMPLETE', 'ZONOTOPE', or a list of methods (which results in an ADAPTIVE evaluation using these methods). Default is 'IBP'.
+        **kwargs: Additional keyword arguments passed to the underlying eval function.
+                  For 'ZONOTOPE': relu_transformer (str), use_errors (bool).
+
     Returns:
         (float): The certified accuracy of the model on the test examples for the given epsilon.
     """
@@ -427,7 +479,15 @@ def eval_certified(model, data_loader, eps, n_classes=10, test_samples=np.inf, m
     certified = 0
     total_images = 0
 
-    if method == "CROWN":
+    if method == 'ZONOTOPE':
+        certified, total_images = eval_zonotope(
+            model, eps, data_loader, n_classes,
+            relu_transformer=kwargs.get('relu_transformer', 'boxy'),
+            use_errors=kwargs.get('use_errors', False),
+            test_samples=test_samples,
+            device=device,
+        )
+    elif method == "CROWN":
         certified, total_images = eval_crown(model, eps, data_loader, n_classes, test_samples, device)
     elif method == 'IBP':
         certified, total_images = eval_ibp(model, eps, data_loader, n_classes, test_samples, device)
@@ -519,7 +579,7 @@ def eval_adversarial(model, data_loader, eps, return_adv_indices=False, restarts
 
     return adv_accuracy
 
-def eval_model(model, data_loader, eps, n_classes=10, test_samples=np.inf, method='ADAPTIVE', device='cuda'):
+def eval_model(model, data_loader, eps, n_classes=10, test_samples=np.inf, method='ADAPTIVE', device='cuda', **kwargs):
     """
     Evaluate the model on standard, certified, and adversarial accuracy.
     
@@ -536,9 +596,9 @@ def eval_model(model, data_loader, eps, n_classes=10, test_samples=np.inf, metho
         tuple: A tuple containing std_acc (float): Standard accuracy of the model, cert_acc (float): Certified accuracy of the model, adv_acc (float): Adversarial accuracy of the model.
     """
     std_acc = eval_acc(model, test_loader=data_loader, test_samples=test_samples)
-    cert_acc = eval_certified(model=model, data_loader=data_loader, n_classes=n_classes, eps=eps, test_samples=test_samples, method=method)
+    cert_acc = eval_certified(model=model, data_loader=data_loader, n_classes=n_classes, eps=eps, test_samples=test_samples, method=method, **kwargs)
     adv_acc = eval_adversarial(model=model, data_loader=data_loader, eps=eps, n_classes=n_classes, device=device, test_samples=test_samples, restarts=30, n_steps=100, step_size=.1, early_stopping=True)
-    
+
     return std_acc, cert_acc, adv_acc
     
 def eval_epoch(model, data_loader, eps, n_classes, device='cuda', test_samples=1000, verification_method="IBP", results_path="./results"):

@@ -119,21 +119,25 @@ class CTRAINWrapper(nn.Module):
         """
         return self.bounded_model(x)
     
-    def evaluate(self, test_loader, test_samples=np.inf, eval_method='ADAPTIVE'):
+    def evaluate(self, test_loader, test_samples=np.inf, eval_method='ADAPTIVE', **kwargs):
         """
         Evaluate the model using the provided test data loader.
 
         Args:
             test_loader (DataLoader): DataLoader containing the test dataset.
             test_samples (int, optional): Number of test samples to evaluate. Defaults to np.inf.
-            eval_method (str or list, optional): The certification method to use. Options are 'IBP', 'CROWN', 'CROWN-IBP', 'ADAPTIVE', or a list of methods (which results in an ADAPTIVE evaluation using these methods). Default is 'ADAPTIVE'.
+            eval_method (str or list, optional): The certification method to use. Options are
+                'IBP', 'CROWN', 'CROWN-IBP', 'ADAPTIVE', 'ZONOTOPE', or a list of methods.
+                Default is 'ADAPTIVE'.
+            **kwargs: Additional arguments forwarded to the certification method.
+                      For 'ZONOTOPE': relu_transformer (str), use_errors (bool).
 
         Returns:
             (Tuple): Evaluation results in terms of std_acc, cert_acc and adv_acc.
         """
         eps_std = self.eps / test_loader.std if test_loader.normalised else torch.tensor(self.eps)
         eps_std = torch.reshape(eps_std, (*eps_std.shape, 1, 1))
-        return eval_model(self.bounded_model, test_loader, n_classes=self.n_classes, eps=eps_std, test_samples=test_samples, method=eval_method, device=self.device)
+        return eval_model(self.bounded_model, test_loader, n_classes=self.n_classes, eps=eps_std, test_samples=test_samples, method=eval_method, device=self.device, **kwargs)
 
     def evaluate_complete(self, test_loader, test_samples=np.inf, timeout=1000, no_cores=4, abcrown_batch_size=512, abcrown_config_dict=dict()):
         """

@@ -7,7 +7,7 @@ from auto_LiRPA import BoundedModule, PerturbationLpNorm
 
 from CTRAIN.eval import eval_acc, eval_certified, eval_epoch
 from CTRAIN.bound import bound_ibp
-from CTRAIN.train.certified.eps_scheduler import SmoothedScheduler
+from CTRAIN.train.certified.eps_scheduler import LinearScheduler
 from CTRAIN.train.certified.losses import get_diffai_loss
 from CTRAIN.train.certified.initialisation import ibp_init_shi
 from CTRAIN.train.certified.regularisers import get_shi_regulariser
@@ -15,7 +15,7 @@ from CTRAIN.util import save_checkpoint
 from CTRAIN.train.certified.regularisers import get_l1_reg
 
 
-def shi_train_model(
+def diff_ai_train_model(
     original_model,
     hardened_model,
     train_loader,
@@ -90,7 +90,7 @@ def shi_train_model(
     cur_lr = optimizer.param_groups[-1]["lr"]
 
     # Important Change to Vanilla IBP: Schedule Eps smoothly
-    eps_scheduler = SmoothedScheduler(
+    eps_scheduler = LinearScheduler(
         num_epochs=num_epochs,
         eps=eps,
         mean=train_loader.mean,
@@ -162,8 +162,11 @@ def shi_train_model(
 
             if eps_scheduler.get_cur_eps(normalise=False) != 0.0:
 
+                # For zonotope bounds, _propagate must walk the plain nn.Module.
+                # BoundedModule wraps layers as BoundInput/BoundLinear/etc. which
+                # are not supported layer types. original_model is the unwrapped net.
                 diff_ai_loss, robust_err = get_diffai_loss(
-                    hardened_model=hardened_model,
+                    hardened_model=original_model if bound_method == 'zonotope' else hardened_model,
                     ptb=ptb,
                     data=data,
                     target=target,
@@ -237,3 +240,4 @@ def shi_train_model(
             )
 
     return hardened_model
+

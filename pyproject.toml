@@ -25,6 +25,7 @@ dependencies = [
     "skl2onnx",
     "appdirs>=1.4",
     "graphviz>=0.20.3",
+    "requests",
     "diffai @ git+https://github.com/ALor79/diffai.git@master"
 ]
 requires-python = ">=3.8"

@@ -33,4 +33,5 @@ module load CUDA/12.3.0
 source ~/dev/CTRAIN/venv/bin/activate
 
 cd ~/dev/CTRAIN
-python3 tests/test_diff_ai.py
+export PYTHONWARNINGS="ignore"
+python -W ignore tests/test_diff_ai.py
