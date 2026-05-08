@@ -407,12 +407,7 @@ def bound_zonotope(
     x_U = ptb.x_U.to(data.device)
     dom = HybridZonotope.from_perturbation(x_L, x_U, use_errors=use_errors)
 
-    was_training = net.training
-    net.eval()
-    with torch.no_grad():
-        dom = _propagate(dom, net, relu_transformer)
-    if was_training:
-        net.train()
+    dom = _propagate(dom, net, relu_transformer)
 
     c = construct_c(data, target, n_classes)
     dom = dom.apply_c_matrix(c)
