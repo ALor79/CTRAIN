@@ -63,12 +63,15 @@ class HybridZonotope:
             return cls(head=head, beta=beta, errors=None)
 
         # Convert the input box to explicit error terms.
-        # errors[i, b, :] = beta[b, i] * e_i  (i-th standard basis vector)
+        # errors[k, b, k] = beta[b, k]; off-diagonal positions are zero.
+        # Per-sample: input clamping at the data boundaries makes beta
+        # vary across the batch, so each sample needs its own diagonal.
         batch = head.shape[0]
         n_elem = beta[0].numel()
-        err = torch.diag(beta[0].flatten())                # [n_elem, n_elem]
-        err = err.unsqueeze(1).expand(-1, batch, -1)       # [n_elem, batch, n_elem]
-        err = err.contiguous().view(n_elem, batch, *head.shape[1:])
+        beta_flat = beta.view(batch, n_elem)               # [batch, n_elem]
+        err = torch.diag_embed(beta_flat)                  # [batch, n_elem, n_elem]
+        err = err.permute(1, 0, 2).contiguous()            # [n_elem, batch, n_elem]
+        err = err.view(n_elem, batch, *head.shape[1:])
         return cls(head=head, beta=None, errors=err)
 
     def lb(self):

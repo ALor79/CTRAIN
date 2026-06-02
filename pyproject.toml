@@ -26,7 +26,8 @@ dependencies = [
     "appdirs>=1.4",
     "graphviz>=0.20.3",
     "requests",
-    "diffai @ git+https://github.com/ALor79/diffai.git@master"
+    "diffai @ git+https://github.com/ALor79/diffai.git@master",
+    "auto_LiRPA @ git+https://github.com/Verified-Intelligence/auto_LiRPA.git@cf0169ce6bfb4fddd82cfff5c259c162a23ad03c"
 ]
 requires-python = ">=3.8"
 keywords = ["certified training", "robustness", "machine learning", "verification"]
